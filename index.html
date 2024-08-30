@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Video Game Sales</title>
+
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <style>
+            h1 {
+                margin: 0 auto;
+                text-align: center;
+            }
+            #description {
+                margin: 0 auto;
+                text-align: center;
+            }
+            #treemap {
+                margin: 0 auto;
+                display: flex;
+                justify-content: center;
+                box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),
+                            0px 8px 10px 1px rgba(0, 0, 0, 0.14),
+                            0px 3px 14px 2px rgba(0, 0, 0, 0.12);
+                border-radius: 5px;
+            }
+            #tooltip {
+                position: absolute;
+                background-color: #F8F8FF;
+                padding: 8px;
+                border-radius: 5px;
+                pointer-events: none;
+                opacity: 0;
+                box-shadow: 0px 1px 3px rgba(0, 0, 0, 0.2), 
+                            0px 1px 1px rgba(0, 0, 0, 0.14), 
+                            0px 2px 1px rgba(0, 0, 0, 0.12);
+            }
+            .tile:hover {
+                cursor: pointer;
+                stroke: #000;
+                stroke-width: 2px;
+                
+            }
+            #legend {
+                margin: 0 auto;
+                display: flex;
+                flex-direction: row;
+                flex-wrap: wrap;
+                justify-content: center;
+                align-items: center;
+                margin-top: 20px;
+                box-shadow: 0px 5px 5px -3px rgba(0, 0, 0, 0.2),
+                            0px 8px 10px 1px rgba(0, 0, 0, 0.14),
+                            0px 3px 14px 2px rgba(0, 0, 0, 0.12);
+                border-radius: 5px;
+            }
+            .legend-item {
+                margin: 5px;
+                display: flex;
+                align-items: center;
+            }
+        </style>
+    </head>
+    <body>
+        <h1 id="title">Video Game Sales</h1>
+        <div id="description">Top 100 Most Sold Video Games by Platform</div>
+        <svg id="treemap"></svg>
+        <svg id="legend"></svg>
+        <div id="tooltip"></div>
+
+        <script>
+            d3.json("https://cdn.freecodecamp.org/testable-projects-fcc/data/tree_map/video-game-sales-data.json")
+                .then(data => {
+                    const dataset = data.children;
+
+            const margin = { top: 20, right: 20, bottom: 20, left: 20 };
+            const width = 1152;
+            const height = 720;
+
+            const svg = d3.select("#treemap")
+                .attr("width", width + margin.right + margin.left)
+                .attr("height", height + margin.top + margin.bottom);
+                
+            const root = d3.hierarchy(data)
+                    .sum(d => d.value)
+                    .sort((a, b) => b.value - a.value);
+
+            const treemapLayout = d3.treemap()
+                    .size([width, height])
+                    .padding(1);
+            
+            treemapLayout(root);
+
+            const colorPalette = [
+                "#FF6F61", "#6B5B95", "#88B04B", "#F7CAC9", "#92A8D1", "#F6BF00",
+                "#FF9A8B", "#B9D9EB", "#9B8F6C", "#E1C6C6", "#9AD0F5", "#F2B5D4",
+                "#8ABF6F", "#D5A6BD", "#A0E2A5", "#FF8C42", "#B79B7D", "#8E44AD" 
+            ];
+            
+            const categories = [...new Set(dataset.flatMap(d => d.children.map(c => c.category)))];
+            categories.sort();
+
+            const colorScale = d3.scaleOrdinal()
+                    .domain([...new Set(dataset.map(d => d.category))]) // Unique categories
+                    .range(colorPalette);
+
+            const nodes = d3.select("svg").selectAll("g")
+                    .data(root.leaves())
+                    .enter()
+                    .append("g")
+                    .attr("transform", d => `translate(${d.x0}, ${d.y0})`);
+
+            const tooltip = d3.select("#tooltip");
+            
+            nodes.append("rect")
+                    .attr("class","tile")
+                    .attr("width", d => d.x1 - d.x0)
+                    .attr("height", d => d.y1 - d.y0)
+                    .attr("transform", `translate(${margin.left}, ${margin.top})`)
+                    .attr("data-name", d => d.data.name)
+                    .attr("data-category", d => d.data.category)
+                    .attr("data-value", d => d.data.value)
+                    .attr("fill", d => colorScale(d.data.category))
+                    .attr("rx", 3)
+                    .attr("ry", 3)
+                    .attr("stroke", "#fff")
+                    .on("mouseover", function(event, d) {
+                        tooltip.transition()
+                            .duration(200)
+                            .style("opacity", 0.9);
+                        tooltip.html(`<strong>Game:</strong> ${d.data.name}<br><strong>Platform:</strong> ${d.data.category}<br><strong>Units sold:</strong> ${d.data.value} million`)
+                            .style("left", (event.pageX + 10) + "px")
+                            .style("top", (event.pageY - 30) + "px")
+                            .attr("data-value", d.data.value);
+                    })
+                    .on("mousemove", function(event) {
+                        tooltip.style("left", (event.pageX + 5) + "px")
+                            .style("top", (event.pageY + 20) + "px");
+                    })
+                    .on("mouseout", function() {
+                        tooltip.transition()
+                            .duration(200)
+                            .style("opacity", 0);
+                    });
+
+            nodes.append("text")
+                    .attr("x", 4)
+                    .attr("y", 14)
+                    .attr("transform", `translate(${margin.left}, ${margin.top})`)
+                    .style("font-size", "12px")
+                    .text(d => d.data.name);
+            
+            const legendWidth = 760;
+            const legendHeight = 30;
+            const legendMargin = { top: 20, right: 40, bottom: 80, left: 80 };
+            const legendItemsPerRow = 9;
+
+            const legendSvg = d3.select("#legend")
+                    .attr("width", legendWidth + legendMargin.right + legendMargin.left)
+                    .attr("height", legendHeight + legendMargin.top + legendMargin.bottom);
+
+            const legend = legendSvg.selectAll(".legend-item")
+                    .data(categories)
+                    .enter()
+                    .append("g")
+                    .attr("class", "legend-item")
+                    .attr("transform", (d, i) => {
+                        const x = (i % legendItemsPerRow) * (legendHeight * 3) + legendMargin.right; // Horizontal position
+                        const y = Math.floor(i / legendItemsPerRow) * (legendHeight + 30) + legendMargin.top; // Vertical position
+                        return `translate(${x}, ${y})`;
+                    });
+
+            legend.append("rect")
+                    .attr("class", "legend-item")
+                    .attr("width", legendHeight)
+                    .attr("height", legendHeight)
+                    .attr("fill", d => colorScale(d))
+                    .attr("rx", 3)
+                    .attr("ry", 3);
+
+            legend.append("text")
+                    .attr("x", margin.right * 1.8)
+                    .attr("y", 15)
+                    .attr("dy", ".35em")
+                    .text(d => d);
+                
+            })
+            .catch(error => console.error(error));
+        </script>
+        <script src="https://cdn.freecodecamp.org/testable-projects-fcc/v1/bundle.js"></script>
+    </body>
+</html>
